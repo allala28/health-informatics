@@ -1,0 +1,181 @@
+---
+title: "Heart Disease prediction"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(neuralnet)
+library(utils)
+library(psych)
+library(ggplot2)
+library(corrplot)
+library(neuralnet)
+library(randomForest)
+library(gbm)
+library(e1071)
+library(pROC)
+```
+
+```{r}
+heart_data <-read.csv("C:/Users/testuser/Downloads/heart.csv")
+```
+
+```{r}
+summary(heart_data)
+```
+```{r}
+describe(heart_data)
+```
+
+```{r}
+corrplot::cor.mtest(heart_data)
+```
+
+```{r}
+#checking the severity of chest pain in male and female
+ggplot(heart_data,aes(cp,col='red'))+geom_histogram(bins=10)+facet_wrap(vars(output))
+
+```
+
+```{r}
+# For example, visualizing 'age' distribution 
+ggplot(heart_data, aes(x = factor(age), fill = factor(age))) + 
+  geom_bar() +  
+  labs(title = "Age Distribution", x = "Age", y = "Count") +  
+  theme_minimal() 
+```
+
+#The likelihood of having a heart attack among both populations in a scale from 0-1 the closer to 1 the higher the probability of a heart event
+```{r}
+ggplot(data = heart_data, aes(x = factor(sex), fill = factor(sex))) +
+  geom_bar() +
+  scale_fill_manual(values = c("blue", "pink"), name = "Gender", labels = c("Female", "Male")) + 
+  labs(title = "Distribution of Males and Females", x = "Gender", y = "Count") +
+  theme_minimal() +
+  labs(x = "Gender", y = "Count") +  
+  theme(legend.position = "top") 
+```
+
+
+
+```{r}
+# Chest Pain distribution 
+ggplot(heart_data, aes(x = factor(cp), fill = factor(cp))) + 
+  geom_bar() +
+  labs(title = "Chest Pain Distribution", x = "CP", y = "Count") +
+  theme_minimal()
+```
+
+#The graphic depicted above shows the ages of both men and women where there is more propensity and higher frequencies of a heart event for men between 55 – 65 and for women the likelihood increases after ag 65.
+```{r}
+# Assuming 0 represents females and 1 represents males
+ggplot(data = heart_data, aes(x = age, fill = factor(sex))) +
+  geom_histogram(position = "stack", color = "black", bins = 30) +
+  scale_fill_manual(values = c("blue", "pink"), name = "Gender", labels = c("Female", "Male")) +  
+  labs(title = "Age Distribution by Gender", x = "Age", y = "Count") +
+  theme_minimal() +
+  theme(legend.position = "top")  
+```
+
+
+```{r}
+# Correlation plot
+corhd <- cor(heart_data[, 1:13])
+corrplot(corhd, type = "upper", order = "hclust", tl.cex = 0.7)
+```
+
+```{r}
+# Blood Pressure and cholestrol 
+x1 <- ggplot(data = heart_data, aes(x = chol, y = trtbps, col = factor(sex))) +
+  geom_point() + geom_smooth(method = "lm", se = FALSE)
+x1
+```
+
+
+
+#the heart dataset for predicting heart failure based on several input variables like age, sex, chest pain type (cp), resting blood pressure (trtbps), cholesterol levels (chol), fasting blood sugar (fbs), resting electrocardiographic results (restecg), maximum heart rate achieved (thalachh), exercise-induced angina (exng), ST depression induced by exercise relative to rest (oldpeak), slope of the peak exercise ST segment (slp), number of major vessels (caa) colored by fluoroscopy, and thalassemia (thall).
+```{r}
+# Assuming 'heart_data' contains predictors and 'output' is the target variable
+# Split the data into training and testing sets
+set.seed(123)
+train_indices <- sample(nrow(heart_data), 0.7 * nrow(heart_data))
+train_data <- heart_data[train_indices, ]
+test_data <- heart_data[-train_indices, ]
+```
+
+```{r}
+# Logistic Regression
+# Fit the logistic regression model
+model_logistic <- glm(output ~ ., data = train_data, family = "binomial")
+
+# Random Forest
+# Fit the random forest model
+model_rf <- randomForest(output ~ ., data = train_data, ntree = 100)
+
+# Gradient Boosting
+# Fit the gradient boosting model
+model_gbm <- gbm(output ~ ., data = train_data, n.trees = 100, distribution = "bernoulli")
+
+# SVM
+# Fit the SVM model
+model_svm <- svm(output ~ ., data = train_data, kernel = "radial")
+```
+
+```{r}
+# Predictions
+# Predict on test set
+pred_logistic <- predict(model_logistic, newdata = test_data, type = "response")
+pred_rf <- predict(model_rf, newdata = test_data, type = "response")
+pred_gbm <- predict(model_gbm, newdata = test_data, n.trees = 100)
+pred_svm <- predict(model_svm, newdata = test_data)
+
+# Plots (ROC curves for evaluation)
+roc_logistic <- roc(test_data$output, pred_logistic)
+roc_rf <- roc(test_data$output, pred_rf)
+roc_gbm <- roc(test_data$output, pred_gbm)
+roc_svm <- roc(test_data$output, pred_svm)
+
+# Plotting ROC curves
+plot(roc_logistic, col = "blue", main = "ROC Curves")
+plot(roc_rf, col = "red", add = TRUE)
+plot(roc_gbm, col = "green", add = TRUE)
+plot(roc_svm, col = "orange", add = TRUE)
+legend("bottomright", legend = c("Logistic Regression", "Random Forest", "Gradient Boosting", "SVM"),
+       col = c("blue", "red", "green", "orange"), lty = 1)
+```
+```{r}
+# Assuming 'test_data$output' contains the actual output values and 'pred_logistic'/'pred_rf'/'pred_gbm'/'pred_svm' contain predicted values for Logistic Regression, Random Forest, Gradient Boosting, and SVM respectively
+
+# Confusion matrix for Logistic Regression
+conf_matrix_logistic <- table(test_data$output, ifelse(pred_logistic > 0.5, 1, 0))
+accuracy_logistic <- sum(diag(conf_matrix_logistic)) / sum(conf_matrix_logistic)
+
+# Confusion matrix for Random Forest
+conf_matrix_rf <- table(test_data$output, ifelse(pred_rf > 0.5, 1, 0))
+accuracy_rf <- sum(diag(conf_matrix_rf)) / sum(conf_matrix_rf)
+
+# Confusion matrix for Gradient Boosting
+conf_matrix_gbm <- table(test_data$output, ifelse(pred_gbm > 0.5, 1, 0))
+accuracy_gbm <- sum(diag(conf_matrix_gbm)) / sum(conf_matrix_gbm)
+
+# Confusion matrix for SVM
+conf_matrix_svm <- table(test_data$output, ifelse(pred_svm > 0.5, 1, 0))
+accuracy_svm <- sum(diag(conf_matrix_svm)) / sum(conf_matrix_svm)
+
+# Printing accuracies
+cat("Logistic Regression Accuracy:", accuracy_logistic, "\n")
+cat("Random Forest Accuracy:", accuracy_rf, "\n")
+cat("Gradient Boosting Accuracy:", accuracy_gbm, "\n")
+cat("SVM Accuracy:", accuracy_svm, "\n")
+
+```
+
+
+
+
+
+
+
+
